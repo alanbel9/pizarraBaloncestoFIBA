@@ -129,7 +129,7 @@ var FibaEurope;
                 }
                 else {
                     // background Image
-                    var bgImg = this.paper.image("images/playground.jpg", 0, 0, 284, 454);
+                    var bgImg = this.paper.image("Images/playground.jpg", 0, 0, 284, 454);
                     var bgImgPattern = bgImg.pattern(0, 0, 284, 454);
                     groupBg.append(this.paper.rect(50, 44, 284, (this.isFullCourt() ? 453 : 226)).attr({ stroke: strokeLineColor, strokeWidth: 4, fill: bgImgPattern }));
                 }
