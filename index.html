@@ -114,6 +114,13 @@
         .toolMenuItem:hover { background-color: #EEEEEE; }
         .toolMenuItemIcon { display: inline-block; width:32px; margin: 2px; margin-right: 6px; vertical-align: middle; }
         .toolMenuItemText { font-family: inherit; font-size: inherit; }
+        /* touch: no scroll/zoom gestures while drawing, no callout/selection on long press */
+        #drawingHost, #drawingHost svg { touch-action: none; }
+        #toolbar, .toolMenu { touch-action: manipulation; }
+        body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+        input, textarea { -webkit-user-select: text; user-select: text; }
+        /* iOS only fires click on body for "clickable" elements (needed to close the menus) */
+        @media (pointer: coarse) { body { cursor: pointer; } }
     </style>
 
 </head>

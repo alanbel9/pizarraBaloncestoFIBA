@@ -73,6 +73,8 @@ var FibaEurope;
                     host.removeChild(host.firstChild);
                 }
                 host.appendChild(svgEl);
+                // no context menu on long press (touch devices)
+                svgEl.addEventListener("contextmenu", function (ev) { ev.preventDefault(); }, false);
                 var paper = Snap(svgEl);
                 this.drawing = new FibaEurope.Drawing.SvgDrawing(paper, null, createUniqueDefs, dontUseDefs);
                 this.drawing.disableTextSelection();
@@ -282,8 +284,19 @@ var FibaEurope;
                         this.setMode(DrawingToolMode.Select);
                         this.selectElement(intersectElement);
                         // resend event to trigger movement
-                        var newEvent = document.createEvent("MouseEvent");
-                        newEvent.initMouseEvent("mousedown", true, true, window, 0, ev.screenX, ev.screenY, ev.clientX, ev.clientY, ev.ctrlKey, ev.altKey, ev.shiftKey, ev.metaKey, 0, null);
+                        var newEvent;
+                        if (window.PointerEvent) {
+                            newEvent = new PointerEvent("pointerdown", {
+                                bubbles: true, cancelable: true, view: window,
+                                screenX: ev.screenX, screenY: ev.screenY, clientX: ev.clientX, clientY: ev.clientY,
+                                ctrlKey: ev.ctrlKey, altKey: ev.altKey, shiftKey: ev.shiftKey, metaKey: ev.metaKey,
+                                pointerId: ev.pointerId, pointerType: ev.pointerType, isPrimary: ev.isPrimary
+                            });
+                        }
+                        else {
+                            newEvent = document.createEvent("MouseEvent");
+                            newEvent.initMouseEvent("mousedown", true, true, window, 0, ev.screenX, ev.screenY, ev.clientX, ev.clientY, ev.ctrlKey, ev.altKey, ev.shiftKey, ev.metaKey, 0, null);
+                        }
                         newEvent.identifier = touchPointId;
                         intersectElement.hoverElement.node.dispatchEvent(newEvent);
                         return;

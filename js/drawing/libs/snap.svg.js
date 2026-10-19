@@ -7383,6 +7383,17 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
         mousemove: "touchmove",
         mouseup: "touchend"
     },
+    // use pointer events (mouse, touch and pen) when available
+    supportsPointer = !!glob.win.PointerEvent,
+    pointerMap = {
+        mousedown: "pointerdown",
+        mousemove: "pointermove",
+        mouseup: "pointerup",
+        mouseover: "pointerover",
+        mouseout: "pointerout"
+    },
+    // max time between two taps to be handled as dblclick on touch devices
+    dblTapTimeout = 350,
     getScroll = function (xy, el) {
         var name = xy == "y" ? "scrollTop" : "scrollLeft",
             doc = el && el.node ? el.node.ownerDocument : glob.doc;
@@ -7400,7 +7411,62 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
     stopTouch = function () {
         return this.originalEvent.stopPropagation();
     },
+    addPointerEvent = function (obj, type, fn, element) {
+        var realName = pointerMap[type],
+            f = function (e) {
+                // pointerId identifies the touch point like Touch.identifier
+                if (e.identifier === undefined) {
+                    e.identifier = e.pointerId;
+                }
+                var x = e.clientX + getScroll("x", element),
+                    y = e.clientY + getScroll("y", element);
+                return fn.call(element, e, x, y);
+            };
+        obj.addEventListener(realName, f, false);
+        return function () {
+            obj.removeEventListener(realName, f, false);
+            return true;
+        };
+    },
+    addDblTapEvent = function (obj, fn, element) {
+        // mobile browsers don't fire dblclick reliably -> detect two taps on click
+        var lastTap = 0,
+            lastDbl = 0,
+            fTap = function (e) {
+                if (e.pointerType !== "touch" && e.pointerType !== "pen" && !(e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents)) {
+                    return;
+                }
+                var now = Date.now();
+                if (now - lastTap < dblTapTimeout && now - lastDbl > dblTapTimeout) {
+                    lastTap = 0;
+                    lastDbl = now;
+                    return fn.call(element, e, e.clientX + getScroll("x", element), e.clientY + getScroll("y", element));
+                }
+                lastTap = now;
+            },
+            fDbl = function (e) {
+                // native dblclick after an emulated one -> ignore
+                if (Date.now() - lastDbl < dblTapTimeout) {
+                    return;
+                }
+                lastDbl = Date.now();
+                return fn.call(element, e, e.clientX + getScroll("x", element), e.clientY + getScroll("y", element));
+            };
+        obj.addEventListener("click", fTap, false);
+        obj.addEventListener("dblclick", fDbl, false);
+        return function () {
+            obj.removeEventListener("click", fTap, false);
+            obj.removeEventListener("dblclick", fDbl, false);
+            return true;
+        };
+    },
     addEvent = function (obj, type, fn, element) {
+        if (supportsPointer && pointerMap[has](type)) {
+            return addPointerEvent(obj, type, fn, element);
+        }
+        if (supportsPointer && type === "dblclick") {
+            return addDblTapEvent(obj, fn, element);
+        }
         var realName = supportsTouch && touchMap[type] ? touchMap[type] : type,
             f = function (e) {
                 var scrollY = getScroll("y", element),
@@ -7447,7 +7513,12 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
             j = drag.length;
         while (j--) {
             dragi = drag[j];
-            if (supportsTouch) {
+            if (supportsPointer) {
+                if (e.pointerId !== dragi.el._drag.id) {
+                    continue;
+                }
+                e.preventDefault();
+            } else if (supportsTouch) {
                 var i = e.touches && e.touches.length,
                     touch;
                 while (i--) {
@@ -7479,9 +7550,29 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
         }
     },
     dragUp = function (e) {
-        Snap.unmousemove(dragMove).unmouseup(dragUp);
         var i = drag.length,
             dragi;
+        if (supportsPointer) {
+            // only end the drags of the released pointer (multitouch)
+            var rest = [];
+            while (i--) {
+                dragi = drag[i];
+                if (dragi.el._drag.id !== e.pointerId) {
+                    rest.unshift(dragi);
+                    continue;
+                }
+                dragi.el._drag = {};
+                eve("snap.drag.end." + dragi.el.id, dragi.end_scope || dragi.start_scope || dragi.move_scope || dragi.el, e);
+                eve.off("snap.drag.*." + dragi.el.id);
+            }
+            drag = rest;
+            if (!drag.length) {
+                Snap.unmousemove(dragMove).unmouseup(dragUp);
+                glob.doc.removeEventListener("pointercancel", dragUp, false);
+            }
+            return;
+        }
+        Snap.unmousemove(dragMove).unmouseup(dragUp);
         while (i--) {
             dragi = drag[i];
             dragi.el._drag = {};
@@ -7787,8 +7878,11 @@ Snap.plugin(function (Snap, Element, Paper, glob) {
             (e.originalEvent || e).preventDefault();
             el._drag.x = x;
             el._drag.y = y;
-            el._drag.id = e.identifier;
-            !drag.length && Snap.mousemove(dragMove).mouseup(dragUp);
+            el._drag.id = supportsPointer ? e.pointerId : e.identifier;
+            if (!drag.length) {
+                Snap.mousemove(dragMove).mouseup(dragUp);
+                supportsPointer && glob.doc.addEventListener("pointercancel", dragUp, false);
+            }
             drag.push({el: el, move_scope: move_scope, start_scope: start_scope, end_scope: end_scope});
             onstart && eve.on("snap.drag.start." + el.id, onstart);
             onmove && eve.on("snap.drag.move." + el.id, onmove);

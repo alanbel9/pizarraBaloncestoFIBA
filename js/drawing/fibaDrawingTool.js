@@ -634,13 +634,24 @@ var FibaEurope;
                 el.longPressStart = null;
                 // how many milliseconds is a long press?
                 var longpressTime = 1200;
-                el.addEventListener('mousedown', function (e) {
+                // pointer events for mouse and touch, fallback to mouse events
+                var evDown = window.PointerEvent ? 'pointerdown' : 'mousedown';
+                var evLeave = window.PointerEvent ? 'pointerleave' : 'mouseleave';
+                var evUp = window.PointerEvent ? 'pointerup' : 'mouseup';
+                el.addEventListener(evDown, function (e) {
                     el.longPressStart = new Date().getTime();
                 }, false);
-                el.addEventListener('mouseleave', function (e) {
+                el.addEventListener(evLeave, function (e) {
                     el.longPressStart = null;
                 }, false);
-                el.addEventListener('mouseup', function (e) {
+                el.addEventListener('pointercancel', function (e) {
+                    el.longPressStart = null;
+                }, false);
+                // prevent the context menu of the long press on touch devices
+                el.addEventListener('contextmenu', function (e) {
+                    e.preventDefault();
+                }, false);
+                el.addEventListener(evUp, function (e) {
                     var start = el.longPressStart;
                     if (start > 0 && new Date().getTime() >= (start + longpressTime)) {
                         onlongpress(e);

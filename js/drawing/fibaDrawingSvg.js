@@ -1537,6 +1537,11 @@ var FibaEurope;
                 var dialogEl = document.createElement("div");
                 dialogEl.setAttribute("style", DrawingElementDialogHelper.baseDialogBackgroundStyle);
                 dialogEl.appendChild(innerDiv);
+                // iOS doesn't blur the textarea when tapping outside of it
+                dialogEl.addEventListener("click", function (e) {
+                    if (e.target === dialogEl)
+                        textEl.blur();
+                });
                 if (text)
                     textEl.value = text;
                 return dialogEl;
